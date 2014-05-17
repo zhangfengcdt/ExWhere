@@ -23,7 +23,8 @@ define([
   "esri/symbols/Font",
   "esri/geometry/Extent",
   "dojo/_base/Color",
-  "http://ec2-54-187-229-112.us-west-2.compute.amazonaws.com:8080/socket.io/socket.io.js"
+  //"http://ec2-54-187-229-112.us-west-2.compute.amazonaws.com:8080/socket.io/socket.io.js"
+  "http://fenglt.esri.com:8080/socket.io/socket.io.js"
   ],
 function(
   declare,
@@ -59,7 +60,7 @@ function(
 
     name: 'GeoChat',
 	
-	serverAddress: 'http://ec2-54-187-229-112.us-west-2.compute.amazonaws.com:8080',
+	serverAddress: 'http://fenglt.esri.com:8080',
 	
 	serverDisplayName: 'GeoChat',
 
@@ -67,6 +68,8 @@ function(
 	
 	shareTextLayer: null,
 	
+	placeGraphicLayer: null,
+
 	lastMouseGraphic: null, 
 	
 	lastMouseText: null, 
@@ -102,7 +105,11 @@ function(
 	colorAlpha : 0,
 	
 	clientId: null,
-	
+
+	messages_map: {},
+
+	currentChatAreaGuid: null,
+
 	personIconPath: "M20.771,12.364c0,0,0.849-3.51,0-4.699c-0.85-1.189-1.189-1.981-3.058-2.548s-1.188-0.454-2.547-0.396c-1.359,0.057-2.492,0.792-2.492,1.188c0,0-0.849,0.057-1.188,0.397c-0.34,0.34-0.906,1.924-0.906,2.321s0.283,3.058,0.566,3.624l-0.337,0.113c-0.283,3.283,1.132,3.68,1.132,3.68c0.509,3.058,1.019,1.756,1.019,2.548s-0.51,0.51-0.51,0.51s-0.452,1.245-1.584,1.698c-1.132,0.452-7.416,2.886-7.927,3.396c-0.511,0.511-0.453,2.888-0.453,2.888h26.947c0,0,0.059-2.377-0.452-2.888c-0.512-0.511-6.796-2.944-7.928-3.396c-1.132-0.453-1.584-1.698-1.584-1.698s-0.51,0.282-0.51-0.51s0.51,0.51,1.02-2.548c0,0,1.414-0.397,1.132-3.68H20.771z",
 
 	personChatPath: "M16,1.466C7.973,1.466,1.466,7.973,1.466,16c0,8.027,6.507,14.534,14.534,14.534c8.027,0,14.534-6.507,14.534-14.534C30.534,7.973,24.027,1.466,16,1.466zM20.729,7.375c0.934,0,1.688,1.483,1.688,3.312S21.661,14,20.729,14c-0.932,0-1.688-1.483-1.688-3.312S19.798,7.375,20.729,7.375zM11.104,7.375c0.932,0,1.688,1.483,1.688,3.312S12.037,14,11.104,14s-1.688-1.483-1.688-3.312S10.172,7.375,11.104,7.375zM16.021,26c-2.873,0-5.563-1.757-7.879-4.811c2.397,1.564,5.021,2.436,7.774,2.436c2.923,0,5.701-0.98,8.215-2.734C21.766,24.132,18.99,26,16.021,26z",
@@ -137,7 +144,7 @@ function(
                     this.shareGraphicLayer.on("graphic-draw", function (evt) {
 						var client_id = evt.graphic.attributes.client_id;
 						var client_nickname = evt.graphic.attributes.client_nickname;
-						client_color = evt.graphic.attributes.client_color;
+						var client_color = evt.graphic.attributes.client_color;
 						if (client_id != undefined){
 							evt.node.setAttribute("stroke", client_color);
 							evt.node.setAttribute("data-classification", client_id);
@@ -145,9 +152,42 @@ function(
                     }.bind(this));
         }
 		else {
-              alert("Your browser does not support SVG.\nPlease user a modern web browser that supports SVG.");
+              console.log("Your browser does not support SVG.\nPlease user a modern web browser that supports SVG.");
 		}
   	    this.map.addLayer(this.shareGraphicLayer);
+
+  	    this.placeGraphicLayer = new GraphicsLayer({
+										id:"GeoChatPlaceLayer",
+										styling:false,
+										dataAttributes:["client_id"]
+									});
+		if (this.placeGraphicLayer.surfaceType === "svg") {
+                    this.placeGraphicLayer.on("graphic-draw", function (evt) {
+						var client_id = evt.graphic.attributes.client_id;
+						var client_nickname = evt.graphic.attributes.client_nickname;
+						var client_color = evt.graphic.attributes.client_color;
+
+						if (client_id != undefined){
+							evt.node.setAttribute("stroke", client_color);
+							evt.node.setAttribute("data-classification", client_id);
+						}
+                    }.bind(this));
+        }
+		else {
+              console.log("Your browser does not support SVG.\nPlease user a modern web browser that supports SVG.");
+		}
+		this.placeGraphicLayer.on("mouse-over", function(evt){
+			var client_id = evt.graphic.attributes.client_id;
+			var client_nickname = evt.graphic.attributes.client_nickname;
+			var client_color = evt.graphic.attributes.client_color;
+			var client_guid = evt.graphic.attributes.client_guid;
+
+			console.log("Guid=" + client_guid);
+
+		}.bind(this));
+
+
+  	    this.map.addLayer(this.placeGraphicLayer);
 		
 		this.map.on("mouse-move", function(mouseEvent){
 			if(this.shareMyCursor.checked != true)
@@ -288,6 +328,11 @@ function(
 		}
 	},
 	
+	sharePlacesChange: function() {
+	
+	
+	},
+	
     textchange: function() {
 		var currentText = this.iputText.get("value");
 		var lastString = currentText.slice(-1);
@@ -305,7 +350,6 @@ function(
 
 	textKeyPress: function(e){
 		if(this.socket == null){
-			//alert('Please start or join a conversation first.');
 			this.iputText.set("value","");
 			return;
 		}
@@ -313,7 +357,7 @@ function(
 		if(code == 13) { //Enter keycode
 			var message = this.iputText.get("value");
 			this.socket.emit('chatmessage', { message: {type: "text", content: message} , room: this.currentRoom });
-			this.addChatText(this.nickname, message);
+			this.addChatText(this.nickname, message, this.currentRoom);
 			this.iputText.set("value","");
 		}
 	},
@@ -368,11 +412,12 @@ function(
                 locatorName: candidate.attributes.Loc_name,
 				"client_id":"1", 
 				"client_color": "rgb(" + this.colorRed + ", " + this.colorGreen + ", " + this.colorBlue +")",
-				"client_nickname": this.nickname
+				"client_nickname": this.nickname,
+				"client_guid": this.generateId()
               };               
               
   		      var graphic = new Graphic(geom, null, attributes, infoTemplate);
-              this.shareGraphicLayer.add(graphic);
+              this.placeGraphicLayer.add(graphic);
 			  var textGraphic = this.createShareText(geom, this.nickname + " : "+ candidate.address, null);
  			  this.shareTextLayer.add(textGraphic);
 			  
@@ -384,7 +429,41 @@ function(
       }
     },
 
-	addChatText: function(by,text){  
+	addChatText: function(by, text, guid){
+		if(guid == null)
+			return;
+
+		var chatMsgList;
+		if(this.messages_map[guid] == null) {
+			chatMsgList = [];
+			this.messages_map[guid] = chatMsgList;
+			chatMsgList.push({nickname: by, message: text});
+		}
+		else{
+			chatMsgList = this.messages_map[guid];
+			chatMsgList.push({nickname: by, message: text});
+		}
+
+		//switch chat context if necessary
+		if(this.currentChatAreaGuid != guid){
+			//clear all messages under old guid context
+			var chatArea = document.getElementById('chatArea');  
+			while (chatArea.firstChild) {
+			  chatArea.removeChild(chatArea.firstChild);
+			}
+
+			//add all messages from the new guid context
+			this.currentChatAreaGuid = guid;
+		 	for (var index = 0; index < chatMsgList.length; index++){
+		 		this.addChatTextToCurrentArea(by, text);
+		 	}
+		}
+		else
+			this.addChatTextToCurrentArea(by, text);
+	},
+
+	addChatTextToCurrentArea: function(by, text){
+
 		var client = this.currentClients[by];
 		if(client == null || client == undefined)
 			return;
@@ -465,6 +544,7 @@ function(
 		ca.scrollTop = 50000;  
 	},
 	
+
 	setCurrentRoom: function(room){
 		this.currentRoom = room;
 	},
@@ -496,12 +576,39 @@ function(
 			this.currentClients[client.nickname].isMe = true;
 		else
 			this.currentClients[client.nickname].isMe = false;
+
+
 		
 		this.settingClients[client.nickname] = {	//activeExtent:   true,
 													activeLocation: true,
 													activeCursor:   true,
 													activeDrawings: true,
 													activePlaces:   true};
+		//Add shared graphics layer
+		var clientLayer = new GraphicsLayer({
+										id:"GeoChatShareLayer-" + client.nickname,
+										styling:false,
+										dataAttributes:["client_id"]
+									});
+									
+		if (clientLayer.surfaceType === "svg") {
+                    clientLayer.on("graphic-draw", function (evt) {
+						var client_id = evt.graphic.attributes.client_id;
+						var client_id = evt.graphic.attributes.graphic_guid;
+						var client_nickname = evt.graphic.attributes.client_nickname;
+						var client_color = evt.graphic.attributes.client_color;
+
+						if (client_id != undefined){
+							evt.node.setAttribute("stroke", client_color);
+							evt.node.setAttribute("data-classification", client_id);
+						}
+                    }.bind(this));
+        }
+		else {
+              console.log("Your browser does not support SVG.\nPlease user a modern web browser that supports SVG.");
+		}
+		this.currentClients[client.nickname].placeGraphicLayer  = clientLayer;
+  	    this.map.addLayer(this.clientLayer);
 	},
 	
 	// remove a client to the clients list
@@ -802,10 +909,16 @@ function(
     connect: function(){
 		//local copy of class methods/variables
 		var nickname = this.userName.get("value");
+		var roomid = this.roomID.get("value");
+		if(nickname == null || nickname == "")
+			return;
+		if(roomid == null || roomid == "")
+			return;
+		
 		var serverDisplayName = this.serverDisplayName;
 		
 		//Connect to the chat node.js server
-		var client_socket = io.connect(this.serverAddress);
+		var client_socket = io.connect(this.serverAddress,{'force new connection':true});
 		this.socket = client_socket;
 		this.nickname = nickname;
 		var clientId = this.clientId;
@@ -817,6 +930,7 @@ function(
 			// and sending the nickname for the connected client
 			client_socket.emit('connect', {
 											nickname: nickname,
+											roomid: roomid,
 											colorRed: this.colorRed,
 											colorGreen: this.colorGreen,
 											colorBlue: this.colorBlue,
@@ -827,15 +941,36 @@ function(
 											shareMyDrawings: false,
 											shareMyPlaces: false
 											//shareMyDrawings: this.shareMyDrawings.checked,
-											//shareMyPlaces: this.shareMyPlaces.checked
+											//shareMyPlaces: this.shareMyPlaces.checked,
 											});
 		}.bind(this));
 		
 		// after the server created a client for us, the ready event
 		// is fired in the server with our clientId, now we can start 
+		client_socket.on('error', function(data){
+			 // saving the clientId localy
+			console.log("ExWhere server: " + data.message);
+			alert("Server:" + data.message);
+			client_socket.disconnect();
+		}.bind(this));
+
+		// the server emits error messages to the client
 		client_socket.on('ready', function(data){
 			 // saving the clientId localy
 			clientId = data.clientId;
+
+			//Diable repeating connecting
+			this.connectButton.set("label", "Disconnect");
+			this.connectButton.set("disabled", true);
+			this.userName.set("disabled", true);
+			this.roomID.set("disabled", true);
+
+			this.autoExtent.set("disabled", false);
+			this.currentExtent.set("disabled", false);
+			this.shareMyExtent.set("disabled", false);
+			this.shareMyLocation.set("disabled", false);
+			this.shareMyCursor.set("disabled", false);
+			this.iputText.set("disabled", false);
 		}.bind(this));
 
 		// after the initialize, the server sends a list of
@@ -859,7 +994,7 @@ function(
 			var message = data.message;
 			
 			if(message.type=="text"){
-				this.addChatText(nickname, message.content);
+				this.addChatText(nickname, message.content, this.currentRoom);
 			}
 			else if(message.type=="update-cursor"){
 				var client = this.currentClients[nickname];
@@ -997,9 +1132,9 @@ function(
 
 			// set the current room
 			this.setCurrentRoom(data.room);
-			
-			// announce a welcome message
-			//this.addChatText(serverDisplayName, 'Welcome to ' + data.room + ', enjoy!');
+
+			// set current chat area to the room guid
+			this.currentChatAreaGuid = data.room;
 			
 			// add the myself to the clients list
 			this.addClient({ 
@@ -1076,29 +1211,23 @@ function(
 				}
 				//3-Cursor
 				//Do not need to update due to mouse move updating frequently 
-				//3-Location
+				//4-Location
 				//Do not need to update due to timer updating frequently
-				
 			} else if(data.state == 'offline'){
 				this.removeClient(data.client);
 			}
 			//refresh the list (GUI)
 			this.refreshClientList();
 		}.bind(this));
-		
-		//Diable repeating connecting
-		this.connectButton.set("label", "Disconnect");
-		this.connectButton.set("disabled", true);
-		this.userName.set("disabled", true);
-		this.confID.set("disabled", true);
-
-		this.autoExtent.set("disabled", false);
-		this.currentExtent.set("disabled", false);
-		this.shareMyExtent.set("disabled", false);
-		this.shareMyLocation.set("disabled", false);
-		this.shareMyCursor.set("disabled", false);
-		this.iputText.set("disabled", false);
     },	
+
+    // unique id generator
+	generateId: function(){
+		var S4 = function () {
+			return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+		};
+		return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
+	},
 
     onOpen: function(){
       console.log('onOpen');

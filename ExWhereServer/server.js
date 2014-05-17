@@ -80,6 +80,15 @@ io.sockets.on('connection', function(socket){
 
 // create a client for the socket
 function connect(socket, data){
+	//find if the same nickname has beed used
+    for (var key in chatClients) {
+		var client = chatClients[key];
+		if(client.nickname == data.nickname){
+			socket.emit('error', { message: "The nickname is in use." });
+			return;
+		}
+	}
+
 	//generate clientId
 	data.clientId = generateId();
 
@@ -95,7 +104,8 @@ function connect(socket, data){
 	socket.emit('ready', { clientId: data.clientId });
 	
 	// auto subscribe the client to the 'lobby'
-	subscribe(socket, { room: 'lobby' });
+	//subscribe(socket, { room: 'lobby' });
+	subscribe(socket, { room: data.roomid });
 
 	// sends a list of all active rooms in the
 	// server

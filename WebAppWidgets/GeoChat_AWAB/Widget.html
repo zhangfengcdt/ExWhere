@@ -17,10 +17,10 @@
 	</input>	  
 	@
 	<input data-dojo-type="dijit/form/TextBox" style="width:90px"
-		   data-dojo-attach-point="confID" 
+		   data-dojo-attach-point="roomID" 
 		   data-dojo-attach-event="onKeyDown:confIDKeyPress"
 		   data-dojo-props="placeholder:'Lobby'"
-		   disabled = "true">
+		   value="esri" disabled = "true">
 	</input>	  
 	<button data-dojo-type="dijit/form/Button" type="button" 
 			data-dojo-attach-point="connectButton"
@@ -62,6 +62,12 @@
 			data-dojo-props="checked: false"
 			disabled = "true">
 	</input><label for="checkBox">Cursor</label>
+	<input  data-dojo-type="dijit/form/CheckBox" 
+			data-dojo-attach-point="shareMyPlaces"
+			data-dojo-attach-event="onChange:sharePlacesChange" 
+			data-dojo-props="checked: false"
+			disabled = "true">
+	</input><label for="checkBox">Places</label>
 	</div>
 
 	<br>
