@@ -5,12 +5,18 @@ var express 	= require('express'),
 	app			= express(),
     server  	= require('http').createServer(app),
     io      	= require('socket.io').listen(server),
+	winston     = require('winston'),
     port    	= 8080,
 
     // hash object to save clients data,
     // { socketid: { clientid, nickname }, socketid: { ... } }
     chatClients = new Object();
 
+	//starting logging
+	winston.add(winston.transports.File, { filename: 'chatserver.log' });
+	//log some outputs
+	winston.log('info', 'Chat Server Starts.');
+	
 // listening to port...
 server.listen(port);
 
@@ -88,7 +94,7 @@ function connect(socket, data){
 			return;
 		}
 	}
-
+	
 	//generate clientId
 	data.clientId = generateId();
 
@@ -106,6 +112,8 @@ function connect(socket, data){
 	// auto subscribe the client to the 'lobby'
 	//subscribe(socket, { room: 'lobby' });
 	subscribe(socket, { room: data.roomid });
+	
+	winston.log('info', 'User ' + data.nickname + ' has joined room ' + data.roomid);
 
 	// sends a list of all active rooms in the
 	// server
@@ -117,13 +125,18 @@ function connect(socket, data){
 function disconnect(socket){
 	// get a list of rooms for the client
 	var rooms = io.sockets.manager.roomClients[socket.id];
+	var clientNickName = chatClients[socket.id].nickname;
+	var clientInRoom = null;
 	
 	// unsubscribe from the rooms
 	for(var room in rooms){
 		if(room && rooms[room]){
+			clientInRoom = room;
 			unsubscribe(socket, { room: room.replace('/','') });
 		}
 	}
+
+	winston.log('info', 'User ' + clientNickName + ' has left room ' + clientInRoom.replace('/',''));
 
 	// client was unsubscribed from the rooms,
 	// now we can selete him from the hash object
@@ -172,7 +185,7 @@ function unsubscribe(socket, data){
 	
 	// remove the client from socket.io room
 	socket.leave(data.room);
-
+	
 	// if this client was the only one in that room
 	// we are updating all clients about that the
 	// room is destroyed
